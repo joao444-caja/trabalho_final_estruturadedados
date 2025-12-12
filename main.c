@@ -2,322 +2,303 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct {
-    int id;
+typedef struct Aluno {
+    int matricula;
     char nome[50];
     float nota;
+    struct Aluno* next;
+    struct Aluno* prev;
 } Aluno;
 
-typedef struct NoAluno {
-    Aluno dados;
-    struct NoAluno *prev;
-    struct NoAluno *next;
-} NoAluno;
+typedef struct RegistroExclusao {
+    int matricula;
+    char nome[50];
+    float nota;
+    struct RegistroExclusao* next;
+} RegistroExclusao;
 
-typedef struct NoUndo {
-    Aluno registro_excluido;
-    struct NoUndo *next;
-} NoUndo;
-
-NoAluno *lista_head = NULL;
-NoUndo *pilha_top = NULL;
-
-int is_empty_pilha() {
-    return (pilha_top == NULL);
-}
-
-Aluno top_pilha() {
-    if (is_empty_pilha()) {
-        Aluno vazio = {0, "Pilha Vazia", 0.0};
-        return vazio;
-    }
-    return pilha_top->registro_excluido;
-}
-
-void push_operacao(Aluno aluno) {
-    NoUndo *novo_no = (NoUndo *)malloc(sizeof(NoUndo));
-    if (novo_no == NULL) {
-        printf("ERRO: Falha na alocacao de memoria para o UNDO.\n");
-        return;
-    }
-    novo_no->registro_excluido = aluno;
-    novo_no->next = pilha_top;
-    pilha_top = novo_no;
-    printf("[UNDO] Operacao de exclusao registrada.\n");
-}
-
-
-Aluno pop_operacao() {
-    if (is_empty_pilha()) {
-        Aluno vazio = {0, "", 0.0};
-        return vazio;
-    }
-    NoUndo *temp = pilha_top;
-    Aluno aluno_undo = temp->registro_excluido;
-    pilha_top = pilha_top->next;
-    free(temp); 
-    return aluno_undo;
-}
-
-Aluno ler_dados_aluno() {
-    Aluno novo;
-    printf("Digite o ID do aluno (inteiro): ");
-    scanf("%d%*c", &novo.id); 
-    printf("Digite o NOME do aluno: ");
-    fgets(novo.nome, 50, stdin); 
-    novo.nome[strcspn(novo.nome, "\n")] = 0;
-    printf("Digite a NOTA do aluno: ");
-    scanf("%f%*c", &novo.nota);
+Aluno* criarAluno(int matricula, char nome[], float nota) {
+    Aluno* novo = malloc(sizeof(Aluno));
+    if (!novo) return NULL;
+    novo->matricula = matricula;
+    strcpy(novo->nome, nome);
+    novo->nota = nota;
+    novo->next = NULL;
+    novo->prev = NULL;
     return novo;
 }
 
-void inserir_aluno(Aluno novo_aluno) {
-    NoAluno *novo_no = (NoAluno *)malloc(sizeof(NoAluno));
-    if (novo_no == NULL) {
-        printf("ERRO: Falha na alocacao de memoria para o aluno.\n");
-        return;
-    }
-    novo_no->dados = novo_aluno;
-    novo_no->next = NULL;
+void inserirInicio(Aluno** head, int matricula, char nome[], float nota) {
+    Aluno* novo = criarAluno(matricula, nome, nota);
+    if (!novo) return;
 
-    if (lista_head == NULL) {
-        novo_no->prev = NULL;
-        lista_head = novo_no;
-        printf("Aluno %s (ID %d) inserido como o primeiro.\n", novo_aluno.nome, novo_aluno.id);
+    if (*head == NULL) {
+        *head = novo;
         return;
     }
 
-    NoAluno *atual = lista_head;
-    while (atual->next != NULL) {
-        atual = atual->next;
-    }
-    atual->next = novo_no;
-    novo_no->prev = atual;
-    printf("Aluno %s (ID %d) inserido no final da lista.\n", novo_aluno.nome, novo_aluno.id);
+    novo->next = *head;
+    (*head)->prev = novo;
+    *head = novo;
 }
 
+void inserirFim(Aluno** head, int matricula, char nome[], float nota) {
+    Aluno* novo = criarAluno(matricula, nome, nota);
+    if (!novo) return;
 
-void remover_aluno(int id_busca) {
-    NoAluno *atual = lista_head;
-    while (atual != NULL && atual->dados.id != id_busca) {
-        atual = atual->next;
-    }
-
-    if (atual != NULL) {
-    
-        push_operacao(atual->dados); 
-        
-        if (atual->prev != NULL) {
-            atual->prev->next = atual->next;
-        } else {
-            lista_head = atual->next; 
-        }
-        if (atual->next != NULL) {
-            atual->next->prev = atual->prev;
-        }
-        
-        free(atual); 
-        printf("Aluno ID %d removido com sucesso.\n", id_busca);
-    } else {
-        printf("ERRO: Aluno ID %d nao encontrado.\n", id_busca);
-    }
-}
-
-void desfazer_exclusao() {
-    Aluno aluno_recuperado = pop_operacao();
-    
-    if (aluno_recuperado.id == 0 && strcmp(aluno_recuperado.nome, "") == 0) {
-        printf("Nao ha operacoes de exclusao para desfazer.\n");
+    if (*head == NULL) {
+        *head = novo;
         return;
     }
 
-    NoAluno *novo_no = (NoAluno *)malloc(sizeof(NoAluno));
-    if (novo_no == NULL) {
-         printf("ERRO: Falha na alocacao de memoria ao desfazer.\n");
-         return;
-    }
-    
-    novo_no->dados = aluno_recuperado;
-    novo_no->prev = NULL;
-    novo_no->next = lista_head;
+    Aluno* aux = *head;
+    while (aux->next != NULL) aux = aux->next;
 
-    if (lista_head != NULL) {
-        lista_head->prev = novo_no;
-    }
-    lista_head = novo_no;
-    
-    printf("Exclusao do aluno ID %d (Nome: %s) desfeita. Registro reinserido.\n", aluno_recuperado.id, aluno_recuperado.nome);
+    aux->next = novo;
+    novo->prev = aux;
 }
 
-void imprimir_lista() {
-    if (lista_head == NULL) {
-        printf("A lista de alunos esta vazia.\n");
+void registrarExclusao(RegistroExclusao** topo, int matricula, char nome[], float nota) {
+    RegistroExclusao* novo = malloc(sizeof(RegistroExclusao));
+    if (!novo) return;
+
+    novo->matricula = matricula;
+    strcpy(novo->nome, nome);
+    novo->nota = nota;
+    novo->next = *topo;
+    *topo = novo;
+}
+
+void imprimirListaInvertida(Aluno* head) {
+    Aluno* aux = head;
+    if (!aux) return;
+
+    while (aux->next) aux = aux->next;
+
+    printf("\nLISTA EM ORDEM INVERSA:\n\n");
+    while (aux) {
+        printf("Matrícula: %d\nNome: %s\nNota: %.2f\n\n",
+               aux->matricula, aux->nome, aux->nota);
+        aux = aux->prev;
+    }
+}
+
+void remover(Aluno** head, RegistroExclusao** topo, int matricula) {
+    if (*head == NULL) return;
+
+    Aluno* aux = *head;
+
+    if (aux->matricula == matricula) {
+        *head = aux->next;
+        if (*head != NULL) (*head)->prev = NULL;
+
+        registrarExclusao(topo, aux->matricula, aux->nome, aux->nota);
+        free(aux);
         return;
     }
-    printf("\n--- LISTA DE ALUNOS ---\n");
-    NoAluno *atual = lista_head;
-    int i = 1;
+
+    while (aux != NULL && aux->matricula != matricula)
+        aux = aux->next;
+
+    if (aux == NULL) return;
+
+    if (aux->prev) aux->prev->next = aux->next;
+    if (aux->next) aux->next->prev = aux->prev;
+
+    registrarExclusao(topo, aux->matricula, aux->nome, aux->nota);
+    free(aux);
+}
+
+void desfazerExclusao(Aluno** head, RegistroExclusao** topo) {
+    if (*topo == NULL) {
+        printf("\nNenhuma exclusão para desfazer.\n");
+        return;
+    }
+
+    RegistroExclusao* excluido = *topo;
+    inserirInicio(head, excluido->matricula, excluido->nome, excluido->nota);
+
+    *topo = excluido->next;
+    free(excluido);
+
+    printf("\nExclusão desfeita com sucesso.\n");
+}
+
+void imprimirLista(Aluno* head) {
+    if (head == NULL) {
+        printf("\nA lista está vazia.\n");
+        return;
+    }
+
+    Aluno* aux = head;
+    printf("\nALUNOS CADASTRADOS:\n\n");
+
+    while (aux != NULL) {
+        printf("Matrícula: %d\nNome: %s\nNota: %.2f\n\n",
+               aux->matricula, aux->nome, aux->nota);
+        aux = aux->next;
+    }
+}
+
+void buscarMatricula(Aluno* head, int matricula) {
+    Aluno* aux = head;
+
+    while (aux != NULL && aux->matricula != matricula)
+        aux = aux->next;
+
+    if (aux == NULL) {
+        printf("\nAluno não encontrado.\n");
+        return;
+    }
+
+    printf("\nAluno encontrado:\nMatrícula: %d\nNome: %s\nNota: %.2f\n",
+           aux->matricula, aux->nome, aux->nota);
+}
+
+void ordenarLista(Aluno** head) {
+    if (*head == NULL || (*head)->next == NULL) return;
+
+    Aluno* atual = (*head)->next;
+
     while (atual != NULL) {
-        printf("%d. ID: %d | Nome: %s | Nota: %.2f\n", i++, atual->dados.id, atual->dados.nome, atual->dados.nota);
-        atual = atual->next;
-    }
-    printf("-------------------------\n");
-}
+        Aluno* aux = atual->prev;
 
-void buscar_aluno(int id_busca) {
-    NoAluno *atual = lista_head;
-    while (atual != NULL) {
-        if (atual->dados.id == id_busca) {
-            printf("\n--- ALUNO ENCONTRADO ---\n");
-            printf("ID: %d | Nome: %s | Nota: %.2f\n", atual->dados.id, atual->dados.nome, atual->dados.nota);
-            printf("------------------------\n");
-            return;
+        while (aux != NULL && aux->matricula > atual->matricula)
+            aux = aux->prev;
+
+        Aluno* proximo = atual->next;
+
+        if (atual->prev) atual->prev->next = atual->next;
+        if (atual->next) atual->next->prev = atual->prev;
+
+        if (aux == NULL) {
+            atual->next = *head;
+            atual->prev = NULL;
+            (*head)->prev = atual;
+            *head = atual;
+        } else {
+            atual->next = aux->next;
+            atual->prev = aux;
+
+            if (aux->next) aux->next->prev = atual;
+            aux->next = atual;
         }
-        atual = atual->next;
+
+        atual = proximo;
     }
-    printf("Aluno ID %d nao encontrado na lista.\n", id_busca);
+
+    printf("\nLista ordenada com sucesso.\n");
 }
 
-void insertion_sort() {
-    if (lista_head == NULL || lista_head->next == NULL) {
-        printf("Lista ja esta ordenada ou vazia.\n");
+void liberarMemoria(Aluno* head) {
+    Aluno* aux;
+    while (head != NULL) {
+        aux = head;
+        head = head->next;
+        free(aux);
+    }
+}
+
+void liberarPilha(RegistroExclusao* topo) {
+    RegistroExclusao* aux;
+    while (topo != NULL) {
+        aux = topo;
+        topo = topo->next;
+        free(aux);
+    }
+}
+
+void exibirTopoPilha(RegistroExclusao* topo) {
+    if (topo == NULL) {
+        printf("\nA pilha de registros está vazia.\n");
         return;
     }
 
-    NoAluno *sorted = NULL; 
-    NoAluno *current = lista_head; 
-
-    while (current != NULL) {
-        NoAluno *next = current->next;
-        
-        
-        if (current->prev != NULL) {
-            current->prev->next = current->next;
-        }
-        if (current->next != NULL) {
-            current->next->prev = current->prev;
-        }
-        current->prev = NULL;
-        current->next = NULL;
-
-        
-        if (sorted == NULL || current->dados.id < sorted->dados.id) {
-            
-            current->next = sorted;
-            if (sorted != NULL) {
-                sorted->prev = current;
-            }
-            sorted = current;
-        } else {
-            
-            NoAluno *temp = sorted;
-            while (temp->next != NULL && temp->next->dados.id < current->dados.id) {
-                temp = temp->next;
-            }
-            
-            current->next = temp->next;
-            if (temp->next != NULL) {
-                temp->next->prev = current;
-            }
-            temp->next = current;
-            current->prev = temp;
-        }
-
-        current = next; 
-    }
-    lista_head = sorted; 
-    printf("Lista ordenada por ID com sucesso (Insertion Sort).\n");
+    printf("\nÚltimo aluno excluído:\nMatrícula: %d\nNome: %s\nNota: %.2f\n",
+           topo->matricula, topo->nome, topo->nota);
 }
 
-void free_lista() {
-    NoAluno *current = lista_head;
-    NoAluno *next;
-    while (current != NULL) {
-        next = current->next;
-        free(current);
-        current = next;
-    }
-    lista_head = NULL;
-}
-
-
-void free_pilha() {
-    NoUndo *current = pilha_top;
-    NoUndo *next;
-    while (current != NULL) {
-        next = current->next;
-        free(current);
-        current = next;
-    }
-    pilha_top = NULL;
+int menu() {
+    int op;
+    printf("\n### MENU ###\n");
+    printf("1 - Inserir no início\n");
+    printf("2 - Inserir no fim\n");
+    printf("3 - Remover\n");
+    printf("4 - Listar\n");
+    printf("5 - Buscar por matrícula\n");
+    printf("6 - Ordenar lista\n");
+    printf("7 - Desfazer exclusão\n");
+    printf("8 - Exibir topo da pilha\n");
+    printf("9 - Listar invertido\n");
+    printf("0 - Sair\n");
+    printf("Escolha: ");
+    scanf("%d", &op);
+    return op;
 }
 
 int main() {
-    int opcao;
-    int id_busca;
+    Aluno* head = NULL;
+    RegistroExclusao* topo = NULL;
+
+    int op, matricula;
+    char nome[50];
+    float nota;
 
     do {
-        printf("\n--- MENU DE CADASTRO DE ALUNOS (ED) ---\n");
-        printf("1. Inserir Novo Aluno\n");
-        printf("2. Remover Aluno (Com Undo)\n");
-        printf("3. Buscar Aluno por ID\n");
-        printf("4. Imprimir Lista de Alunos\n");
-        printf("5. Ordenar Lista (Insertion Sort)\n");
-        printf("6. Desfazer Ultima Exclusao (Undo)\n");
-        printf("7. Checar Topo da Pilha (DEBUG)\n"); 
-        printf("0. Sair\n");
-        printf("Escolha uma opcao: ");
-        
-        if (scanf("%d%*c", &opcao) != 1) { 
-             printf("Entrada invalida. Digite um numero de 0 a 7.\n");
-             opcao = -1;
-             int c;
-             while ((c = getchar()) != '\n' && c != EOF); 
-        }
+        op = menu();
 
-        switch(opcao) {
-            case 1: 
-                inserir_aluno(ler_dados_aluno());
+        switch (op) {
+            case 1:
+                printf("Matrícula: ");
+                scanf("%d", &matricula);
+                printf("Nome: ");
+                scanf(" %[^\n]", nome);
+                printf("Nota: ");
+                scanf("%f", &nota);
+                inserirInicio(&head, matricula, nome, nota);
                 break;
+
             case 2:
-                printf("Digite o ID do aluno a ser removido: ");
-                scanf("%d%*c", &id_busca);
-                remover_aluno(id_busca);
+                printf("Matrícula: ");
+                scanf("%d", &matricula);
+                printf("Nome: ");
+                scanf(" %[^\n]", nome);
+                printf("Nota: ");
+                scanf("%f", &nota);
+                inserirFim(&head, matricula, nome, nota);
                 break;
+
             case 3:
-                printf("Digite o ID do aluno para busca: ");
-                scanf("%d%*c", &id_busca);
-                buscar_aluno(id_busca);
+                printf("Matrícula para remover: ");
+                scanf("%d", &matricula);
+                remover(&head, &topo, matricula);
                 break;
+
             case 4:
-                imprimir_lista();
+                imprimirLista(head);
                 break;
+
             case 5:
-                insertion_sort();
+                printf("Matrícula para buscar: ");
+                scanf("%d", &matricula);
+                buscarMatricula(head, matricula);
                 break;
-            case 6: 
-                desfazer_exclusao();
+
+            case 6:
+                ordenarLista(&head);
                 break;
-            case 7: 
-                if(!is_empty_pilha()) {
-                    Aluno topo = top_pilha();
-                    printf("[TOPO DA PILHA] Ultimo aluno excluido: %s (ID %d).\n", topo.nome, topo.id);
-                } else {
-                    printf("[TOPO DA PILHA] A pilha de UNDO esta vazia.\n");
-                }
+
+            case 7:
+                desfazerExclusao(&head, &topo);
                 break;
+
+            case 8:
+                exibirTopoPilha(topo);
+                break;
+
+            case 9:
+                imprimirListaInvertida(head);
+                break;
+
             case 0:
-                printf("Liberando memoria e encerrando o programa...\n");
-                free_lista();
-                free_pilha();
-                break;
-            default:
-                if(opcao != -1) {
-                    printf("Opcao invalida. Tente novamente.\n");
-                }
-                break;
-        }
-    } while (opcao != 0);
-    
-    return 0;
-}
+                printf("\nSaindo...\
